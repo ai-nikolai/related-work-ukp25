@@ -96,7 +96,7 @@ Parameter explanation:
 After having evaluation data is ready. You can run:
 
 ```
-python eval_test.py --env_file api.env --deployment_name "your evaluation model" --dataset_file "path_to_dataset" --output_path "your_output_path"
+python eval_tests.py --env_file api.env --deployment_name "your evaluation model" --dataset_path "path_to_dataset" --output_path "your_output_path"
 ```
 
 Parameter explanation:
