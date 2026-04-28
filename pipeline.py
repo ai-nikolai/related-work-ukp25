@@ -319,7 +319,7 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
 
             # Positioning evalations
             print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Contribution check...")
-            record[i]['contribution_eval'], cost['individual'][i]['contribution_cost'] =  run_contribution_eval(model_type=cont_eval_model,
+            record[i]['contribution_eval'], cost['individual'][i]['contribution_cost'] =  run_contribution_eval(model=cont_eval_model,
                                                                                                                 sys_prompts_eval=config['prompts']['contribution']['system_prompts'],
                                                                                                                 examples=config['prompts']['contribution']['examples'],
                                                                                                                 expected_type=expected_type,
@@ -385,8 +385,8 @@ def main(args):
 
     # Setting main generator model 
         
-    
-    if config['deployment_name'] in ['gpt-4o', 'o3-mini', 'deepseek/deepseek-v3.1-terminus','mistralai/devstral-2512','openai/gpt-oss-120b']:
+    if args.model_type == "api":
+    # if config['deployment_name'] in ['gpt-4o', 'o3-mini', 'deepseek/deepseek-v3.1-terminus','mistralai/devstral-2512','openai/gpt-oss-120b']:
         generator_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
                                             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                                             api_version=config['api_version'],
@@ -394,27 +394,56 @@ def main(args):
                                             temperature=config['temperature'])
 
 
-    elif config['deployment_name'] in ['meta-llama/Llama-3.3-70B-Instruct', 'google/gemma-3-27b-it']:
+    # elif config['deployment_name'] in ['meta-llama/Llama-3.3-70B-Instruct', 'google/gemma-3-27b-it']:
+    elif args.model_type == "local":
         generator_model = models.VLLModel(deployment_name=config['deployment_name'],
                                           temperature=config['temperature'],
                                           context=65536)
 
     else:
-        raise ValueError(f"Deployment name {config['deployment_name']} not supported.")
+        raise ValueError(f"Model Type is not supported: {args.model_type}.")
+        # raise ValueError(f"Deployment name {config['deployment_name']} not supported.")
 
-    # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
-    coh_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                                        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-                                        api_version=config['api_version'],
-                                        deployment_name='gpt-4o',
-                                        temperature=config['temperature'])
+    if args.runtime_version == "original_version":
+        # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
+        coh_eval_model = models.AzureModel(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='gpt-4o',
+                                            temperature=config['temperature'])
 
-    # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
-    cont_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                                        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-                                        api_version=config['api_version'],
-                                        deployment_name='o3-mini',
-                                        temperature=config['temperature'])
+        # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
+        cont_eval_model = models.AzureModel(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='o3-mini',
+                                            temperature=config['temperature'])
+    elif args.runtime_version == "new_version":
+        # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
+        coh_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='openai/gpt-4o',
+                                            temperature=config['temperature'])
+
+        # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
+        cont_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='openai/o3-mini',
+                                            temperature=config['temperature'])
+
+    
+    elif args.runtime_version == "local_version":
+        # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
+        coh_eval_model = generator_model
+
+        # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
+        cont_eval_model = generator_model
+    else:
+        raise ValueError(f"Runtime Version name {args.runtime_version} not supported.")
+                    
+
 
     # Starting pipeline loop
     run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, sub_dataset)
@@ -436,6 +465,9 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', default=0.8)
     parser.add_argument('--add_new_paper', action='store_true')
     parser.add_argument('--style_change', action='store_true')
+    # New Params
+    parser.add_argument('--runtime_version', default="new_version", type=str)
+    parser.add_argument('--model_type', default="api", type=str)
 
     arguments = parser.parse_args()
     main(arguments)
@@ -444,5 +476,15 @@ if __name__ == '__main__':
 """
 Usage:
 
-python pipeline.py --exp_name "gpt_oss" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments"
+# WITH TSP:
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
+
+
+
+# NORMAL USAGE:
+python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
+
+python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v4-flash' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
+python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
+
 """

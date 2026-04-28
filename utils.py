@@ -69,8 +69,11 @@ def calculate_cost(model_name, prompt_tokens, completion_tokens):
         total_cost = prompt_tokens * 2.5 / 1000000 + completion_tokens * 10 / 1000000
     elif model_name == 'o3-mini-2025-01-31':
         total_cost = prompt_tokens * 1.1 / 1000000 + completion_tokens * 4.4 / 1000000
+    
     else:
-        raise KeyError(f"Unknown model name {model_name}")
+        total_cost = prompt_tokens * 0.5 / 1000000 + completion_tokens * 3.0 / 1000000
+    # else:
+    #     raise KeyError(f"Unknown model name {model_name}")
 
     return total_cost
 
