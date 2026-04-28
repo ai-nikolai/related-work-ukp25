@@ -444,5 +444,5 @@ if __name__ == '__main__':
 """
 Usage:
 
-python pipeline.py --exp_name "gpt_oss" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "exper-eval-rw" --output_path "experiments"
+python pipeline.py --exp_name "gpt_oss" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw" --output_path "experiments"
 """
