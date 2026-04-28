@@ -128,7 +128,7 @@ class OpenRouter:
     Azure client object for OpenAI models
     """
     def __init__(self, endpoint, api_key, api_version, deployment_name, temperature):
-        self.client = OpenAI(base_url=endpoint, api_key=api_key, api_version=api_version, timeout=3600)
+        self.client = OpenAI(base_url=endpoint, api_key=api_key, timeout=3600)
         # self.client = AzureOpenAI(azure_endpoint=endpoint, api_key=api_key, api_version=api_version)
         self.deployment_name = deployment_name
         self.temperature = temperature
