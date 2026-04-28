@@ -286,7 +286,7 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                     cont_type_inst = config['prompts']['contribution']['instruction'][change_dict[cont_dist[main_paper_id]]]
                     expected_type = change_dict[cont_dist[main_paper_id]]
 
-                if not config['report_feedback']:
+                if not config.get('report_feedback'):
                     feedback = record[i-1]['feedback']
                 else:
                     feedback = record[i-1]['eval_report']
@@ -335,13 +335,15 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                                                  expected_type=expected_type)
 
             # Generating feedback
-            if not config['report_feedback']:
+            if not config.get('report_feedback'):
                 print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Generating feedback...")
                 record[i]['feedback'], cost['individual'][i]['feedback_cost'] = generate(model=generator_model,
                                                                                          system_prompt=config['prompts']['feedback']['system_prompt'],
                                                                                          user_prompt=record[i]['eval_report'])
                 cost['total'] += cost['individual'][i]['feedback_cost']['total_cost']
-
+            # Save the completed papers so far to avoid waste sources in case of API problems
+            utils.save(record, os.path.join(config['output_path'], f"records/{main_paper_id}_iteration_{i}.json"))
+            utils.save(cost, os.path.join(config['output_path'], f"costs/{main_paper_id}_iteration_{i}.json"))
         # Save the completed papers so far to avoid waste sources in case of API problems
         utils.save(record, os.path.join(config['output_path'], f"records/{main_paper_id}.json"))
         utils.save(cost, os.path.join(config['output_path'], f"costs/{main_paper_id}.json"))
