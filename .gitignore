@@ -1,2 +1,6 @@
 __pycache__/
 .idea/*
+experiments/*
+expert-eval-rw/*
+expert-eval-rw-data.zip
+api.env
