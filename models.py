@@ -1,3 +1,4 @@
+from openai import OpenAI
 from openai import AzureOpenAI
 import openai
 import utils
@@ -118,5 +119,67 @@ class VLLModel:
         cost = {'prompt_tokens': len(completion[0].prompt_token_ids),
                 'completion_tokens': len(completion[0].outputs[0].token_ids),
                 'total_cost': 0}
+
+        return response, cost
+
+
+class OpenRouter:
+    """
+    Azure client object for OpenAI models
+    """
+    def __init__(self, endpoint, api_key, api_version, deployment_name, temperature):
+        self.client = OpenAI(base_url=endpoint, api_key=api_key, api_version=api_version, timeout=3600)
+        # self.client = AzureOpenAI(azure_endpoint=endpoint, api_key=api_key, api_version=api_version)
+        self.deployment_name = deployment_name
+        self.temperature = temperature
+
+    def __call__(self, system_prompt, user_prompt, response_format):
+        """
+        Inference call for the model in a chat completion style
+        :param system_prompt: System prompt for the task
+        :param user_prompt: Task specific input prompt including few-shot examples
+        :param response_format: JSON Schema for evaluators, None for generators
+        :return: Generated response and a dictionary including token counts and estimated cost
+        """
+        messages = [{'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': user_prompt}]
+
+        if self.deployment_name == 'o3-mini':
+            # o3-mini does not support temperature adjustment
+            try:
+                completion = self.client.chat.completions.create(model=self.deployment_name,
+                                                                 messages=messages,
+                                                                 response_format=response_format)
+            except openai.RateLimitError:
+                # Retrying for rare cases of rate limit errors.
+                time.sleep(1)
+                completion = self.client.chat.completions.create(model=self.deployment_name,
+                                                                 messages=messages,
+                                                                 response_format=response_format)
+        else:
+            try:
+                completion = self.client.chat.completions.create(model=self.deployment_name,
+                                                                 messages=messages,
+                                                                 temperature=self.temperature,
+                                                                 response_format=response_format)
+            except openai.RateLimitError:
+                time.sleep(1)
+                completion = self.client.chat.completions.create(model=self.deployment_name,
+                                                                 messages=messages,
+                                                                 temperature=self.temperature,
+                                                                 response_format=response_format)
+
+        if response_format is None:
+            response = completion.choices[0].message.content
+        else:
+            try:
+                # Trying whether response format followed.
+                response = json.loads(completion.choices[0].message.content)
+            except:
+                response = {key: "" for key in response_format['json_schema']['schema']['required']}
+
+        cost = {'prompt_tokens': completion.usage.prompt_tokens,
+                'completion_tokens': completion.usage.completion_tokens,
+                'total_cost': utils.calculate_cost(completion.model, completion.usage.prompt_tokens, completion.usage.completion_tokens)}
 
         return response, cost

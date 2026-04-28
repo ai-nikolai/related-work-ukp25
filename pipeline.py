@@ -383,9 +383,11 @@ def main(args):
 
     load_dotenv(config['env_file'])
 
-    # Setting main generator model
-    if config['deployment_name'] in ['gpt-4o', 'o3-mini']:
-        generator_model = models.AzureModel(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    # Setting main generator model 
+        
+    
+    if config['deployment_name'] in ['gpt-4o', 'o3-mini', 'deepseek/deepseek-v3.1-terminus','mistralai/devstral-2512','openai/gpt-oss-120b']:
+        generator_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
                                             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                                             api_version=config['api_version'],
                                             deployment_name=config['deployment_name'],
@@ -401,14 +403,14 @@ def main(args):
         raise ValueError(f"Deployment name {config['deployment_name']} not supported.")
 
     # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
-    coh_eval_model = models.AzureModel(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    coh_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
                                         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                                         api_version=config['api_version'],
                                         deployment_name='gpt-4o',
                                         temperature=config['temperature'])
 
     # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
-    cont_eval_model = models.AzureModel(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    cont_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
                                         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                                         api_version=config['api_version'],
                                         deployment_name='o3-mini',
@@ -437,3 +439,10 @@ if __name__ == '__main__':
 
     arguments = parser.parse_args()
     main(arguments)
+
+
+"""
+Usage:
+
+python pipeline.py --exp_name "gpt_oss" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "exper-eval-rw" --output_path "experiments"
+"""
