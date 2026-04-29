@@ -6,6 +6,7 @@ import models
 from tqdm import tqdm
 from datetime import datetime
 from dotenv import load_dotenv
+from pprint import pprint
 
 
 def run_citation_eval(draft, paper_data):
@@ -233,7 +234,7 @@ def generate(model, system_prompt, user_prompt):
     return generation, cost
 
 
-def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, dataset):
+def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, dataset, load_previous=False, previous_index=1):
     """
     Running evaluation an generation pipeline for the dataset
     :param generator_model: Generator model object
@@ -250,11 +251,24 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
         pbar.set_description(f"Processing {main_paper_id}")
 
         # Evaluation records based on iterations
-        record = {i: {} for i in range(1,config['num_iterations']+1)}
-        cost = {'individual': {i: {} for i in range(1,config['num_iterations']+1)},
-                'total': 0}
+        if load_previous:
+            previous_path = config["output_path"]
+            record = utils.read_json(os.path.join(previous_path, 'records', f'{main_paper_id}_iteration_{previous_index}.json'))
+            cost = utils.read_json(os.path.join(previous_path, 'costs', f'{main_paper_id}_iteration_{previous_index}.json'))
 
-        for i in range(1, config['num_iterations']+1):
+            starting_index = previous_index + 1
+
+            # record_index_mapping_func = lambda x : str(x)
+        else:
+            record = {str(i): {} for i in range(1,config['num_iterations']+1)}
+            cost = {'individual': {str(i): {} for i in range(1,config['num_iterations']+1)},
+                    'total': 0}
+        
+            starting_index = 1
+
+            # record_index_mapping_func = lambda x : int()
+
+        for i in range(starting_index, config['num_iterations']+1):
 
             print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Generating draft...")
 
@@ -278,69 +292,85 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
             else:
                 # prompt adjustment for the next drafts with feedback
                 # Based on the experiment type, new papers are added and style change applied.
-
+                # pprint(record)
+                
                 if config['add_new_paper'] and i > config['num_iterations']/2:
+                    active_data = dataset[main_paper_id].copy()
+                
+                elif config['add_new_paper'] and load_previous:
+                    active_data = dataset[main_paper_id].copy()
+                    paper_limit = len(dataset[main_paper_id]['cited_papers_in_rw']) - round(len(dataset[main_paper_id]['cited_papers_in_rw'])/4)
+
+                    active_data['cited_papers_in_rw'] = {key: dataset[main_paper_id]['cited_papers_in_rw'][key]
+                                                         for no, key in enumerate(dataset[main_paper_id]['cited_papers_in_rw']) if (no + 1) <= paper_limit}
+                else:
                     active_data = dataset[main_paper_id].copy()
 
                 if config['style_change'] and i > config['num_iterations']/2:
                     cont_type_inst = config['prompts']['contribution']['instruction'][change_dict[cont_dist[main_paper_id]]]
                     expected_type = change_dict[cont_dist[main_paper_id]]
+                else:
+                    expected_type = cont_dist[main_paper_id]
+                    cont_type_inst = config['prompts']['contribution']['instruction'][cont_dist[main_paper_id]]
 
                 if not config.get('report_feedback'):
-                    feedback = record[i-1]['feedback']
+                    feedback = record[str(i-1)]['feedback']
                 else:
-                    feedback = record[i-1]['eval_report']
+                    feedback = record[str(i-1)]['eval_report']
 
                 draft_sys_prompt = config['prompts']['next_draft']['system_prompt'].format(contribution=cont_type_inst)
                 draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
-                                    f"PREVIOUS DRAFT: {record[i-1]['draft']}\n\n" \
+                                    f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
                                     f"FEEDBACK: {feedback}"
 
+            print(f"Generating - ===s\nSystem Prompt:\n---\n{draft_sys_prompt}\n+++\n\n===s\nUser Prompt:\n---\n{draft_user_prompt}\n+++END")
             # Generating draft
-            record[i]['draft'], cost['individual'][i]['generation_cost'] = generate(model=generator_model,
+            record[str(i)]['draft'], cost['individual'][str(i)]['generation_cost'] = generate(model=generator_model,
                                                                                     system_prompt=draft_sys_prompt,
                                                                                     user_prompt=draft_user_prompt)
-            cost['total'] += cost['individual'][i]['generation_cost']['total_cost']
+            cost['total'] += cost['individual'][str(i)]['generation_cost']['total_cost']
 
             # Citation checking evaluation
             print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Citation check...")
-            record[i]['citation_eval'] = run_citation_eval(draft=record[i]['draft'], paper_data=active_data)
+            record[str(i)]['citation_eval'] = run_citation_eval(draft=record[str(i)]['draft'], paper_data=active_data)
 
             # Coherence evaluation
             print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Coherence check...")
-            record[i]['coherence_eval'], cost['individual'][i]['coherence_cost'] = run_coherence_eval(model=coh_eval_model,
+            record[str(i)]['coherence_eval'], cost['individual'][str(i)]['coherence_cost'] = run_coherence_eval(model=coh_eval_model,
                                                                                                       sys_prompt_eval=config['prompts']['coherence']['system_prompt'],
                                                                                                       examples=config['prompts']['coherence']['example'],
-                                                                                                      draft=record[i]['draft'],
+                                                                                                      draft=record[str(i)]['draft'],
                                                                                                       paper_data=active_data,
                                                                                                       sys_prompt_sum = config['prompts']['summary']['system_prompt'],
                                                                                                       majority=config['majority_vote'])
-            cost['total'] += cost['individual'][i]['coherence_cost']['total_cost']
+            cost['total'] += cost['individual'][str(i)]['coherence_cost']['total_cost']
 
             # Positioning evalations
             print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Contribution check...")
-            record[i]['contribution_eval'], cost['individual'][i]['contribution_cost'] =  run_contribution_eval(model=cont_eval_model,
+            record[str(i)]['contribution_eval'], cost['individual'][str(i)]['contribution_cost'] =  run_contribution_eval(model=cont_eval_model,
                                                                                                                 sys_prompts_eval=config['prompts']['contribution']['system_prompts'],
                                                                                                                 examples=config['prompts']['contribution']['examples'],
                                                                                                                 expected_type=expected_type,
                                                                                                                 draft=record[i]['draft'],
                                                                                                                 sys_prompt_sum=config['prompts']['summary']['system_prompt'],
                                                                                                                 majority=config['majority_vote'])
-            cost['total'] += cost['individual'][i]['contribution_cost']['total_cost']
+            cost['total'] += cost['individual'][str(i)]['contribution_cost']['total_cost']
 
             # Generating evaluation report
-            record[i]['eval_report'] = aggregate(citation_eval=record[i]['citation_eval'],
-                                                 coherence_eval=record[i]['coherence_eval'],
-                                                 contribution_eval=record[i]['contribution_eval'],
+            record[str(i)]['eval_report'] = aggregate(citation_eval=record[str(i)]['citation_eval'],
+                                                 coherence_eval=record[str(i)]['coherence_eval'],
+                                                 contribution_eval=record[str(i)]['contribution_eval'],
                                                  expected_type=expected_type)
 
             # Generating feedback
             if not config.get('report_feedback'):
                 print(f"Paper: {main_paper_id} Iteration {i}/{config['num_iterations']} Generating feedback...")
-                record[i]['feedback'], cost['individual'][i]['feedback_cost'] = generate(model=generator_model,
-                                                                                         system_prompt=config['prompts']['feedback']['system_prompt'],
-                                                                                         user_prompt=record[i]['eval_report'])
-                cost['total'] += cost['individual'][i]['feedback_cost']['total_cost']
+                record[str(i)]['feedback'], cost['individual'][str(i)]['feedback_cost'] = generate(model=generator_model,
+                                                                                            system_prompt=config['prompts']['feedback']['system_prompt'],
+                                                                                            user_prompt=record[str(i)]['eval_report'])
+                cost['total'] += cost['individual'][str(i)]['feedback_cost']['total_cost']
+            
+            
             # Save the completed papers so far to avoid waste sources in case of API problems
             utils.save(record, os.path.join(config['output_path'], f"records/{main_paper_id}_iteration_{i}.json"))
             utils.save(cost, os.path.join(config['output_path'], f"costs/{main_paper_id}_iteration_{i}.json"))
@@ -448,7 +478,7 @@ def main(args):
 
 
     # Starting pipeline loop
-    run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, sub_dataset)
+    run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, sub_dataset, args.load_previous, args.previous_index)
 
 
 if __name__ == '__main__':
@@ -467,7 +497,13 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', default=0.8)
     parser.add_argument('--add_new_paper', action='store_true')
     parser.add_argument('--style_change', action='store_true')
+    parser.add_argument('--report_feedback', action='store_true')
+
+
     # New Params
+    parser.add_argument('--load_previous', action='store_true')
+    parser.add_argument('--previous_index', default=1, type=int)
+
     parser.add_argument('--runtime_version', default="new_version", type=str)
     parser.add_argument('--model_type', default="api", type=str)
 
@@ -489,4 +525,9 @@ python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_n
 python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v4-flash' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 
+
+
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments/nvidia/nemotron-3-super-120b-a12b:free--v2_experiments-28-04-2026-18-22-36" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api --load_previous --previous_index 1
+
+# 
 """

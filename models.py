@@ -170,7 +170,12 @@ class OpenRouter:
                                                                  response_format=response_format)
 
         if response_format is None:
-            response = completion.choices[0].message.content
+            try:
+                response = completion.choices[0].message.content
+            except Exception as e:
+                print(f"Generation Did Not Work:\n{e}\n")
+                print(f"Completion:\n---\n{completion}\n+++\n")
+                # print(f"Messages:\n---\n{messages}\n+++")
         else:
             try:
                 # Trying whether response format followed.
