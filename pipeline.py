@@ -223,14 +223,22 @@ def aggregate(citation_eval, coherence_eval, contribution_eval, expected_type):
     return report
 
 
-def generate(model, system_prompt, user_prompt):
+def generate(model, system_prompt, user_prompt, max_retries=3):
     """
     Calling LLM object for inference
     :param model: LLM object
     :param system_prompt: System prompt for inference
     :param user_prompt: Other required inputs for the task
     """
-    generation, cost = model(system_prompt=system_prompt, user_prompt=user_prompt, response_format=None)
+    iteration = 0
+    while iteration < max_retries:
+        try:
+            generation, cost = model(system_prompt=system_prompt, user_prompt=user_prompt, response_format=None)
+            break
+        except Exception as e:
+            print(f"===Generation {iteration+1}/{max_retries} did not work.===")
+            print(e)
+            iteration += 1
     return generation, cost
 
 
@@ -293,7 +301,7 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                 # prompt adjustment for the next drafts with feedback
                 # Based on the experiment type, new papers are added and style change applied.
                 # pprint(record)
-                
+
                 if config['add_new_paper'] and i > config['num_iterations']/2:
                     active_data = dataset[main_paper_id].copy()
                 
@@ -323,7 +331,7 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                                     f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
                                     f"FEEDBACK: {feedback}"
 
-            print(f"Generating - ===s\nSystem Prompt:\n---\n{draft_sys_prompt}\n+++\n\n===s\nUser Prompt:\n---\n{draft_user_prompt}\n+++END")
+            # print(f"Generating - ===s\nSystem Prompt:\n---\n{draft_sys_prompt}\n+++\n\n===s\nUser Prompt:\n---\n{draft_user_prompt}\n+++END")
             # Generating draft
             record[str(i)]['draft'], cost['individual'][str(i)]['generation_cost'] = generate(model=generator_model,
                                                                                     system_prompt=draft_sys_prompt,
@@ -351,7 +359,7 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                                                                                                                 sys_prompts_eval=config['prompts']['contribution']['system_prompts'],
                                                                                                                 examples=config['prompts']['contribution']['examples'],
                                                                                                                 expected_type=expected_type,
-                                                                                                                draft=record[i]['draft'],
+                                                                                                                draft=record[str(i)]['draft'],
                                                                                                                 sys_prompt_sum=config['prompts']['summary']['system_prompt'],
                                                                                                                 majority=config['majority_vote'])
             cost['total'] += cost['individual'][str(i)]['contribution_cost']['total_cost']
@@ -526,6 +534,19 @@ python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_n
 python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 
 
+models: 
+qwen/qwen3.6-35b-a3b
+nvidia/nemotron-3-nano-30b-a3b
+qwen/qwen-plus-2025-07-28
+qwen/qwen3.5-122b-a10b
+z-ai/glm-4.7-flash
+deepseek/deepseek-v4-flash
+anthropic/claude-3-haiku
+google/gemini-2.5-flash-lite #no
+google/gemini-3.1-flash-lite-preview #no
+qwen/qwen3-next-80b-a3b-thinking
+
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen3-next-80b-a3b-thinking' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments/nvidia/nemotron-3-super-120b-a12b:free--v2_experiments-28-04-2026-18-22-36" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api --load_previous --previous_index 1
 
