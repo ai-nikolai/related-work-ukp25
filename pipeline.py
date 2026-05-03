@@ -8,6 +8,64 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pprint import pprint
 
+def get_results_from_single_record_iteration(record, iteration=1):
+    """ Gets a flat result from a single record..."""
+    results = {
+                'hallucinated_paper_ratio':0.0,
+                'missing_paper_ratio': 0.0,
+                'length': 0.0,
+                'citation_emphasis_ratio': 0.0,
+                'coherence_ratio': 0.0,
+                'contribution_existence': 0.0,
+                'contribution_type_correctness': 0.0,
+                'contribution_ratio': 0.0,
+                'hard_const_complete': 0.0,
+    }   
+
+    try:
+        # Number of hallucinated papers / number of papers needs to be cited
+        results['hallucinated_paper_ratio'] = len(record[str(iteration)]['citation_eval']['hallucinated_papers']) / total_citation
+
+        # Number of missing papers / number of papers needs to be cited
+        results['missing_paper_ratio'] = len(record[str(iteration)]['citation_eval']['missing_papers']) / total_citation
+
+        # Binary evaluation whether draft length is in tolerance interval
+        results['length']= int(record[str(iteration)]['citation_eval']['total_length'] == "Adequate emphasis")
+
+        # Number of citations with adequate emphasis / number of papers needs to be cited
+        results['citation_emphasis_ratio']= sum(value == "Adequate emphasis" for value in record[str(iteration)]['citation_eval']['citation_emphasis'].values()) / total_citation
+
+        # Average of coherent sentences over all citations
+        if sum(len(record[str(iteration)]['coherence_eval'][citation]) for citation in record[str(iteration)]['coherence_eval']) > 0:
+            results['coherence_ratio'] = sum(record[str(iteration)]['coherence_eval'][citation][sentence]['final_score']
+                                                        for citation in record[str(iteration)]['coherence_eval']
+                                                        for sentence in record[str(iteration)]['coherence_eval'][citation]) / sum(len(record[str(iteration)]['coherence_eval'][citation]) for citation in record[str(iteration)]['coherence_eval'])
+        else:
+            results['coherence_ratio'] = 0
+
+        # Binary evaluation of contribution-positioning existence
+        results['contribution_existence'] = int(record[str(iteration)]['contribution_eval']['type']['final_type'] != 3)
+
+        # Binary evaluation of correctness of contribution-positioning type
+        results['contribution_type_correctness'] = int(record[str(iteration)]['contribution_eval']['type']['final_type'] == record[str(iteration)]['contribution_eval']['expected_type'])
+
+        # Average of correct positioned paragraphs over all paragraphs depending on positioning type
+        if results['contribution_type_correctness']:
+            results['contribution_ratio'] = sum(record[str(iteration)]['contribution_eval']['check'][paragraph]['final_score']
+                                                        for paragraph in record[str(iteration)]['contribution_eval']['check']) / len(record[str(iteration)]['contribution_eval']['check'])
+
+        # Hard constraints
+        if results['hallucinated_paper_ratio'] == 0 and results['missing_paper_ratio'] == 0 \
+            and results['coherence_ratio'] == 1 and results['contribution_existence'] == 1:
+            results['hard_const_complete'] = 1
+    # NOTE:
+    # In the paper contribution existence and contribution type are position type. And the three categories are: 1) fully mentioned; 2) partially mentioned (e.g. summary) 3) not mentioned.
+    except Exception as e:
+        print(f"Extracting Results from Record did not work: iteration {iteration}.")
+        print(e)    
+
+    return results
+
 
 def run_citation_eval(draft, paper_data):
     """
@@ -326,10 +384,34 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                 else:
                     feedback = record[str(i-1)]['eval_report']
 
-                draft_sys_prompt = config['prompts']['next_draft']['system_prompt'].format(contribution=cont_type_inst)
-                draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
-                                    f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
-                                    f"FEEDBACK: {feedback}"
+
+                if config.get("multi_stage_tts"):
+                    results = get_results_from_single_record_iteration(record, i-1)
+
+                    # TODO: MULTI STAGE TTS
+                    # TODO: Think about Hard-constraints and only then soft-constraints
+                    if results['hallucinated_paper_ratio'] != 0:
+                        pass #any hallucinated papers
+                    elif results['missing_paper_ratio'] != 0:
+                        pass #any missing papers
+                    elif results['contribution_existence'] != 1:
+                        pass #is there contribution
+                    elif results['coherence_ratio'] != 1:
+                        pass #is there coherence...
+                    # FOCUS ON SPECIFIC IMPROVEMENTS...
+                    # TODO: 1-- specifically, we need to write specific instructions on how to improve those specific metrics without others
+                    # TODO: 2-- after that we can see how to improve upon the soft constraints...
+                    # TODO: The paper itself should be written in a way that it's not necessarily test time scaling (but a test time scaling improvement step...)
+
+                    draft_sys_prompt = ""
+                    draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                        f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                        f"FEEDBACK: {feedback}"
+                else:
+                    draft_sys_prompt = config['prompts']['next_draft']['system_prompt'].format(contribution=cont_type_inst)
+                    draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                        f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                        f"FEEDBACK: {feedback}"
 
             # print(f"Generating - ===s\nSystem Prompt:\n---\n{draft_sys_prompt}\n+++\n\n===s\nUser Prompt:\n---\n{draft_user_prompt}\n+++END")
             # Generating draft
@@ -473,6 +555,21 @@ def main(args):
                                             deployment_name='openai/o3-mini',
                                             temperature=config['temperature'])
 
+    elif args.runtime_version == "new_version_v2":
+        # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
+        coh_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='qwen/qwen-plus-2025-07-28',
+                                            temperature=config['temperature'])
+
+        # Setting contribution-positioning evaluation model as o3-mini based on  the preliminary evaluation results
+        cont_eval_model = models.OpenRouter(endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                                            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                                            api_version=config['api_version'],
+                                            deployment_name='qwen/qwen-plus-2025-07-28',
+                                            temperature=config['temperature'])
+
     
     elif args.runtime_version == "local_version":
         # Setting coherence evaluation model as gpt-4o based on the preliminary evaluation results
@@ -500,8 +597,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_file', required=True, type=str)
     parser.add_argument('--output_path', required=True, type=str)
     parser.add_argument('--data_count', default=44, type=int)
-    parser.add_argument('--num_iterations', default=5, type=int)
-    parser.add_argument('--majority_vote', default=3, type=int)
+    parser.add_argument('--num_iterations', default=3, type=int) #previously 5
+    parser.add_argument('--majority_vote', default=2, type=int) #previously 3
     parser.add_argument('--temperature', default=0.8)
     parser.add_argument('--add_new_paper', action='store_true')
     parser.add_argument('--style_change', action='store_true')
@@ -512,8 +609,10 @@ if __name__ == '__main__':
     parser.add_argument('--load_previous', action='store_true')
     parser.add_argument('--previous_index', default=1, type=int)
 
+    parser.add_argument('--multi_stage_tts', action='store_true')
     parser.add_argument('--runtime_version', default="new_version", type=str)
     parser.add_argument('--model_type', default="api", type=str)
+
 
     arguments = parser.parse_args()
     main(arguments)
@@ -532,23 +631,34 @@ python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_n
 
 python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v4-flash' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments/nvidia/nemotron-3-super-120b-a12b:free--v2_experiments-28-04-2026-18-22-36" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api --load_previous --previous_index 1
 
 
 models: 
-qwen/qwen3.6-35b-a3b
-nvidia/nemotron-3-nano-30b-a3b
-qwen/qwen-plus-2025-07-28
-qwen/qwen3.5-122b-a10b
+# qwen/qwen3.5-122b-a10b
+# qwen/qwen3.6-flash
+
+
+anthropic/claude-3-haiku
 z-ai/glm-4.7-flash
 deepseek/deepseek-v4-flash
-anthropic/claude-3-haiku
+deepseek/deepseek-v3.1-terminus
+openai/gpt-oss-120b
+qwen/qwen-plus-2025-07-28 #worked
+
+# MODELS THAT DON'T WORK
 google/gemini-2.5-flash-lite #no
 google/gemini-3.1-flash-lite-preview #no
-qwen/qwen3-next-80b-a3b-thinking
+qwen/qwen3-next-80b-a3b-thinking #slow
+qwen/qwen3.6-35b-a3b #no -> eval doesn't work.
+nvidia/nemotron-3-nano-30b-a3b #no -> no doesn't work json schema not supported
 
-tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen3-next-80b-a3b-thinking' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api
 
-tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments/nvidia/nemotron-3-super-120b-a12b:free--v2_experiments-28-04-2026-18-22-36" --prompt_file "prompts.json" --runtime_version "local_version" --model_type api --load_previous --previous_index 1
+ACTUAL EXPERIMENTS:
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
 
-# 
+# Note:
+- Above experiments use qwen plus as judge
 """

@@ -204,3 +204,9 @@ Please use the following citation:
 ## Disclaimer
 
 > This repository contains experimental software and is published for the sole purpose of giving additional background details on the respective publication. 
+
+## Other:
+
+```bash
+source /workspace/miniconda3/etc/profile.d/conda.sh
+```
