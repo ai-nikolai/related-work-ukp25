@@ -679,9 +679,9 @@ nvidia/nemotron-3-nano-30b-a3b #no -> no doesn't work json schema not supported
 
 
 ACTUAL EXPERIMENTS:
-tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api
-tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
-tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28'         --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus'   --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b'               --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
 
 # MULTI STAGE TTS EXPERIMENTS:
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28'         --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
