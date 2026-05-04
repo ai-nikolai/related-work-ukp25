@@ -398,15 +398,20 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                         pass #is there contribution
                     elif results['coherence_ratio'] != 1:
                         pass #is there coherence...
+                    else:
+                        draft_sys_prompt = ""
+                        draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                            f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                            f"FEEDBACK: {feedback}"
+                    
+                    
+                    
                     # FOCUS ON SPECIFIC IMPROVEMENTS...
                     # TODO: 1-- specifically, we need to write specific instructions on how to improve those specific metrics without others
                     # TODO: 2-- after that we can see how to improve upon the soft constraints...
                     # TODO: The paper itself should be written in a way that it's not necessarily test time scaling (but a test time scaling improvement step...)
 
-                    draft_sys_prompt = ""
-                    draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
-                                        f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
-                                        f"FEEDBACK: {feedback}"
+
                 else:
                     draft_sys_prompt = config['prompts']['next_draft']['system_prompt'].format(contribution=cont_type_inst)
                     draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
