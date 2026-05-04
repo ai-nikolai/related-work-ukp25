@@ -170,7 +170,8 @@ def extract_citation_numbers(text):
     for match in matches:
         for content in match.strip().split(','):
             content = content.replace(' ', '')
-            if content.isdigit():
+            # adding the content.strip() as some "space chars are actually: \u202f (e.g. GPT-oss model)"
+            if content.strip().isdigit(): #need to account for other 
                 # Single citations or multiple discrete citations
                 citations.add(int(content))
             else:
@@ -184,7 +185,10 @@ def extract_citation_numbers(text):
                     for i in range(start, end+1):
                         citations.add(i)
                 else:
-                    raise ValueError(f"Invalid citation mark {content}")
+                    print(f"Invalid citation mark:`{content}`")
+                    pass
+                    # NOT SURE IT'S WORTH BREAKING THE LOOP...
+                    # raise ValueError(f"Invalid citation mark:`{content}`")
 
     return sorted(list(citations))
 
