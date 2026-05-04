@@ -391,19 +391,38 @@ def run_pipeline(generator_model, coh_eval_model, cont_eval_model, config, datas
                     # TODO: MULTI STAGE TTS
                     # TODO: Think about Hard-constraints and only then soft-constraints
                     if results['hallucinated_paper_ratio'] != 0:
-                        pass #any hallucinated papers
-                    elif results['missing_paper_ratio'] != 0:
-                        pass #any missing papers
-                    elif results['contribution_existence'] != 1:
-                        pass #is there contribution
-                    elif results['coherence_ratio'] != 1:
-                        pass #is there coherence...
-                    else:
-                        draft_sys_prompt = ""
+                        draft_sys_prompt = config['prompts']['next_draft_hallucination']['system_prompt'].format(contribution=cont_type_inst)
                         draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
                                             f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
-                                            f"FEEDBACK: {feedback}"
-                    
+                                            f"FEEDBACK: {feedback}\n\n" \
+                                            f"REMINDER: config['prompts']['next_draft_hallucination']['feedback_appendix']"
+
+                    elif results['missing_paper_ratio'] != 0:
+                        draft_sys_prompt = config['prompts']['next_draft_missing_citation']['system_prompt'].format(contribution=cont_type_inst)
+                        draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                            f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                            f"FEEDBACK: {feedback}\n\n" \
+                                            f"REMINDER: config['prompts']['next_draft_missing_citation']['feedback_appendix']"
+
+                    elif results['contribution_existence'] != 1:
+                        draft_sys_prompt = config['prompts']['next_draft_contribution_existence']['system_prompt'].format(contribution=cont_type_inst)
+                        draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                            f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                            f"FEEDBACK: {feedback}\n\n" \
+                                            f"REMINDER: config['prompts']['next_draft_contribution_existence']['feedback_appendix']"
+
+                    elif results['coherence_ratio'] != 1:
+                        draft_sys_prompt = config['prompts']['next_draft_coherence']['system_prompt'].format(contribution=cont_type_inst)
+                        draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                            f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                            f"FEEDBACK: {feedback}\n\n" \
+                                            f"REMINDER: config['prompts']['next_draft_coherence']['feedback_appendix']"
+                    else:
+                        draft_sys_prompt = config['prompts']['next_draft_soft_constraints']['system_prompt'].format(contribution=cont_type_inst)
+                        draft_user_prompt = f"{utils.set_paper_info_prompt(active_data)}\n\n" \
+                                            f"PREVIOUS DRAFT: {record[str(i-1)]['draft']}\n\n" \
+                                            f"FEEDBACK: {feedback}\n\n" \
+                                            f"REMINDER: config['prompts']['next_draft_soft_constraints']['feedback_appendix']"
                     
                     
                     # FOCUS ON SPECIFIC IMPROVEMENTS...
@@ -663,6 +682,12 @@ ACTUAL EXPERIMENTS:
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts.json" --runtime_version "new_version_v2" --model_type api --data_count 20
+
+# MULTI STAGE TTS EXPERIMENTS:
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28'         --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus'   --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b'               --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
+
 
 # Note:
 - Above experiments use qwen plus as judge

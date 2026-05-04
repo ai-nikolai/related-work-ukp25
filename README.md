@@ -209,4 +209,5 @@ Please use the following citation:
 
 ```bash
 source /workspace/miniconda3/etc/profile.d/conda.sh
+conda activate grep
 ```
