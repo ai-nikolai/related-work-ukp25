@@ -23,6 +23,8 @@ def get_results_from_single_record_iteration(record, iteration=1):
     }   
 
     try:
+        total_citation = len(record["1"]['citation_eval']['citation_emphasis'])
+
         # Number of hallucinated papers / number of papers needs to be cited
         results['hallucinated_paper_ratio'] = len(record[str(iteration)]['citation_eval']['hallucinated_papers']) / total_citation
 
@@ -281,7 +283,7 @@ def aggregate(citation_eval, coherence_eval, contribution_eval, expected_type):
     return report
 
 
-def generate(model, system_prompt, user_prompt, max_retries=3):
+def generate(model, system_prompt, user_prompt, response_format=None, max_retries=3):
     """
     Calling LLM object for inference
     :param model: LLM object
@@ -291,7 +293,7 @@ def generate(model, system_prompt, user_prompt, max_retries=3):
     iteration = 0
     while iteration < max_retries:
         try:
-            generation, cost = model(system_prompt=system_prompt, user_prompt=user_prompt, response_format=None)
+            generation, cost = model(system_prompt=system_prompt, user_prompt=user_prompt, response_format=response_format)
             break
         except Exception as e:
             print(f"===Generation {iteration+1}/{max_retries} did not work.===")
@@ -687,6 +689,10 @@ tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployme
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'qwen/qwen-plus-2025-07-28'         --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'deepseek/deepseek-v3.1-terminus'   --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
 tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'openai/gpt-oss-120b'               --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --data_count 20 --multi_stage_tts
+
+
+#TEST:
+tsp python pipeline.py --exp_name "v2_experiments" --env_file api.env --deployment_name 'nvidia/nemotron-3-super-120b-a12b:free' --dataset_file "expert-eval-rw/final_rw_data.json" --output_path "experiments/nvidia/nemotron-3-super-120b-a12b:free--v2_experiments-28-04-2026-18-22-36" --prompt_file "prompts_tts.json" --runtime_version "new_version_v2" --model_type api --load_previous --previous_index 1 --data_count 1 --multi_stage_tts
 
 
 # Note:

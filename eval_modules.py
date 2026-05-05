@@ -1,5 +1,23 @@
 import utils
 
+def generate(model, system_prompt, user_prompt, response_format=None, max_retries=3):
+    """
+    Calling LLM object for inference
+    :param model: LLM object
+    :param system_prompt: System prompt for inference
+    :param user_prompt: Other required inputs for the task
+    """
+    iteration = 0
+    while iteration < max_retries:
+        try:
+            generation, cost = model(system_prompt=system_prompt, user_prompt=user_prompt, response_format=response_format)
+            break
+        except Exception as e:
+            print(f"===Generation {iteration+1}/{max_retries} did not work.===")
+            print(e)
+            iteration += 1
+    return generation, cost
+
 
 def citation_eval(draft, paper_data):
     """
@@ -88,9 +106,12 @@ def coherence_eval(model, system_prompt, examples, draft, paper_data, turns):
 
             # Repeating evaluation for specified number of turns
             for turn in range(turns):
-                raw_eval, cost = model(system_prompt=system_prompt,
-                                       user_prompt=user_prompt,
-                                       response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()})
+                raw_eval, cost = generate(
+                                        model=model,
+                                        system_prompt=system_prompt,
+                                        user_prompt=user_prompt,
+                                        response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()}
+                                )
 
                 total_cost['prompt_tokens'] += cost['prompt_tokens']
                 total_cost['completion_tokens'] += cost['completion_tokens']
@@ -125,9 +146,12 @@ def contribution_type_eval(model, system_prompts, examples, draft, turns):
     # Classifying position statement type in the generated draft
     # Repeating evaluation for specified number of turns
     for turn in range(turns):
-        raw_eval, cost = model(system_prompt=system_prompts['contribution_type'],
-                               user_prompt=user_prompt,
-                               response_format={"type": "json_schema", "json_schema": utils.get_contribution_type_evaluation_schema()})
+        raw_eval, cost = generate(
+                                model=model,
+                                system_prompt=system_prompts['contribution_type'],
+                                user_prompt=user_prompt,
+                                response_format={"type": "json_schema", "json_schema": utils.get_contribution_type_evaluation_schema()}
+                        )
 
         total_cost['prompt_tokens'] += cost['prompt_tokens']
         total_cost['completion_tokens'] += cost['completion_tokens']
@@ -168,9 +192,12 @@ def contribution_check_eval(model, system_prompts, examples, draft, type, turns)
                 user_prompt = f"{examples['direct_eval']}\n\nDRAFT: {paragraph}\n\n"
 
             for turn in range(turns):
-                raw_eval, cost = model(system_prompt=system_prompts['direct_eval'],
-                                       user_prompt=user_prompt,
-                                       response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()})
+                raw_eval, cost = generate(
+                                    model=model,
+                                    system_prompt=system_prompts['direct_eval'],
+                                    user_prompt=user_prompt,
+                                    response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()}
+                                )
 
                 total_cost['prompt_tokens'] += cost['prompt_tokens']
                 total_cost['completion_tokens'] += cost['completion_tokens']
@@ -195,9 +222,12 @@ def contribution_check_eval(model, system_prompts, examples, draft, type, turns)
                 user_prompt = f"{examples['pairwise_eval']}\n\nCONTEXT: {paragraph}\nFINAL: {final_paragraph}\n\n"
 
             for turn in range(turns):
-                raw_eval, cost = model(system_prompt=system_prompts['pairwise_eval'],
-                                       user_prompt=user_prompt,
-                                       response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()})
+                raw_eval, cost = generate(
+                                    model=model,
+                                    system_prompt=system_prompts['pairwise_eval'],
+                                    user_prompt=user_prompt,
+                                    response_format={"type": "json_schema", "json_schema": utils.get_general_evaluation_schema()}
+                                )
 
                 total_cost['prompt_tokens'] += cost['prompt_tokens']
                 total_cost['completion_tokens'] += cost['completion_tokens']
